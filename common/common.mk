@@ -14,7 +14,9 @@ XDP_C = ${XDP_TARGET:=.c}
 XDP_OBJ = ${XDP_C:.c=.o}
 BPF_CFLAGS ?= -I$(LIBBPF_DIR)/build/usr/include/ -I../headers/
 
-LIBS = -l:libbpf.a -lelf $(USER_LIBS)
+LIBS = -l:libbpf.a -lelf -lz $(USER_LIBS)
+
+OUTPUT_DIR ?= ./build
 
 all: llvm-check $(USER_TARGET) $(XDP_OBJ)
 	@echo "alpha"
@@ -33,6 +35,7 @@ clean:
 	rm -rf $(LIBBPF_DIR)/build
 	$(MAKE) -C $(LIBBPF_DIR) clean
 	# $(MAKE) -C $(COMMON_DIR) clean
+	rm -rf $(OUTPUT_DIR)
 	rm -f $(XDP_OBJ) 
 	rm -f *.ll
 	rm -f *~
@@ -53,9 +56,11 @@ $(OBJECT_LIBBPF):
 	fi
 
 $(USER_TARGET): %: %.c $(OBJECT_LIBBPF) Makefile $(COMMON_MK)
-	$(CC) -Wall $(USER_CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
+	mkdir -p $(OUTPUT_DIR)
+	$(CC) -Wall $(USER_CFLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$@ $< $(LIBS)
 
 $(XDP_OBJ): %.o: %.c $(OBJECT_LIBBPF) Makefile $(COMMON_MK)
+	mkdir -p $(OUTPUT_DIR)
 	$(CLANG) -S \
 	    -target bpf \
 	    -D __BPF_TRACING__ \
@@ -65,5 +70,5 @@ $(XDP_OBJ): %.o: %.c $(OBJECT_LIBBPF) Makefile $(COMMON_MK)
 	    -Wno-pointer-sign \
 	    -Wno-compare-distinct-pointer-types \
 	    -Werror \
-	    -O2 -emit-llvm -c -g -o ${@:.o=.ll} $<
-	$(LLC) -march=bpf -filetype=obj -o $@ ${@:.o=.ll}
+	    -O2 -emit-llvm -c -g -o $(OUTPUT_DIR)/${@:.o=.ll} $<
+	$(LLC) -march=bpf -filetype=obj -o $(OUTPUT_DIR)/$@ $(OUTPUT_DIR)/${@:.o=.ll}
