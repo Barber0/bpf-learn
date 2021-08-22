@@ -6,12 +6,11 @@ OBJECT_LIBBPF = $(LIBBPF_DIR)/libbpf.a
 USER_C = ${USER_TARGET:=.c}
 USER_OBJ = ${USER_C:.c=.o}
 USER_CFLAGS ?= -I$(LIBBPF_DIR)/build/usr/include/ -g
-USER_CFLAGS += -I../headers
 LDFLAGS ?= -L$(LIBBPF_DIR)
 
 XDP_C = ${XDP_TARGET:=.c}
 XDP_OBJ = ${XDP_C:.c=.o}
-BPF_CFLAGS ?= -I$(LIBBPF_DIR)/build/usr/include/ -I../headers/
+BPF_CFLAGS ?= -I$(LIBBPF_DIR)/build/usr/include/
 
 LIBS = -l:libbpf.a -lelf -lz $(USER_LIBS)
 
