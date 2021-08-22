@@ -1,12 +1,8 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
-
-#include <net/if.h>
-#include <linux/if_link.h> /* depend on kernel-headers installed */
 
 #include "../common/consts.h"
 

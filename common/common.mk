@@ -1,6 +1,5 @@
 CLANG ?= clang
 LLC ?= llc
-CC ?= gcc
 
 OBJECT_LIBBPF = $(LIBBPF_DIR)/libbpf.a
 
@@ -57,7 +56,7 @@ $(OBJECT_LIBBPF):
 
 $(USER_TARGET): %: %.c $(OBJECT_LIBBPF) Makefile $(COMMON_MK)
 	mkdir -p $(OUTPUT_DIR)
-	$(CC) -Wall $(USER_CFLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$@ $< $(LIBS)
+	$(CLANG) -Wall $(USER_CFLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$@ $< $(LIBS)
 
 $(XDP_OBJ): %.o: %.c $(OBJECT_LIBBPF) Makefile $(COMMON_MK)
 	mkdir -p $(OUTPUT_DIR)
