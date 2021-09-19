@@ -1,5 +1,6 @@
 CLANG ?= clang
 LLC ?= llc
+CC ?= gcc
 
 OBJECT_LIBBPF = $(LIBBPF_DIR)/libbpf.a
 
@@ -32,16 +33,17 @@ llvm-check: $(CLANG) $(LLC)
 clean:
 	rm -rf $(LIBBPF_DIR)/build
 	$(MAKE) -C $(LIBBPF_DIR) clean
-	# $(MAKE) -C $(COMMON_DIR) clean
+	$(MAKE) -C $(COMMON_DIR) clean
 	rm -rf $(OUTPUT_DIR)
 	rm -f $(XDP_OBJ) 
 	rm -f *.ll
 	rm -f *~
 
-%.o: %.c
-	gcc -c $< -o $@
-
 COMMON_MK = $(COMMON_DIR)/common.mk
+
+COMMON_OBJS += $(COMMON_DIR)/cmd_args.o $(COMMON_DIR)/xdp_helper.o
+$(COMMON_OBJS):
+	make -C $(COMMON_DIR) ${notdir $@}
 
 $(OBJECT_LIBBPF):
 	@if [ ! -d $(LIBBPF_DIR) ]; then \
@@ -53,9 +55,9 @@ $(OBJECT_LIBBPF):
 		mkdir -p build; $(MAKE) install_headers DESTDIR=build OBJDIR=.; \
 	fi
 
-$(USER_TARGET): %: %.c $(OBJECT_LIBBPF) Makefile $(COMMON_MK)
+$(USER_TARGET): %: %.c $(OBJECT_LIBBPF) Makefile $(COMMON_MK) $(COMMON_OBJS)
 	mkdir -p $(OUTPUT_DIR)
-	$(CLANG) -Wall $(USER_CFLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$@ $< $(LIBS)
+	$(CC) -Wall $(USER_CFLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$@ $< $(COMMON_OBJS) $(LIBS)
 
 $(XDP_OBJ): %.o: %.c $(OBJECT_LIBBPF) Makefile $(COMMON_MK)
 	mkdir -p $(OUTPUT_DIR)

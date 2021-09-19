@@ -1,6 +1,6 @@
 
-XDP_TARGET := xdp_test_kern
-USER_TARGET := xdp_test_user
+XDP_TARGET := xdp_prog_kern
+USER_TARGET := main
 
 COMMON_DIR = ../common/
 LIBBPF_DIR = ../libbpf/src
