@@ -5,9 +5,9 @@
 #include <bpf/libbpf.h>
 #include <linux/if_link.h>
 
-#include "../common/common_define.h"
-#include "../common/cmd_args.h"
-#include "../common/xdp_helper.h"
+#include "../global/common_define.h"
+#include "../global/cmd_args.h"
+#include "../global/xdp_helper.h"
 
 static const char *default_bpf_obj_filename = "xdp_prog_kern.o";
 
@@ -25,6 +25,8 @@ int main(int argc, char *argv[])
         .netif_idx = -1,
         .do_unload = false,
     };
+    cfg.xdp_flags &= ~XDP_FLAGS_MODES;    /* Clear flags */
+    cfg.xdp_flags |= XDP_FLAGS_SKB_MODE;
 
     strncpy(cfg.obj_filename, default_bpf_obj_filename, sizeof(cfg.obj_filename));
 

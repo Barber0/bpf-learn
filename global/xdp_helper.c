@@ -141,7 +141,7 @@ struct bpf_object *load_bpf_and_xdp_attach(struct config *cfg)
         exit(EXIT_FAIL_BPF);
     }
 
-    strncpy(cfg->progsec, bpf_program__section_name(bpf_prog), sizeof(cfg->progsec));
+    strncpy(cfg->progsec, bpf_program__title(bpf_prog, false), sizeof(cfg->progsec));
 
     int prog_fd = bpf_program__fd(bpf_prog);
     if (prog_fd <= 0)
