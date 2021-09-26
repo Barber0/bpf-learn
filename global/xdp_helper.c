@@ -6,18 +6,15 @@
 
 #include <linux/types.h>
 #include <linux/if_link.h>
-#include <linux/err.h>
 
 #include <net/if.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
+#include "../global/err.h"
 #include "common_define.h"
 #include "xdp_helper.h"
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
 
 int xdp_link_attach(int ifidx, __u32 xdp_flags, int prog_fd)
 {
@@ -289,4 +286,22 @@ struct bpf_object *load_bpf_and_xdp_attach(struct config *cfg)
         exit(err);
     }
     return bpf_obj;
+}
+
+static const char *xdp_act_names[XDP_ACTION_MAX] = {
+    [XDP_ABORTED] = "XDP_ABORTED",
+    [XDP_DROP] = "XDP_DROP",
+    [XDP_PASS] = "XDP_PASS",
+    [XDP_TX] = "XDP_TX",
+    [XDP_REDIRECT] = "XDP_REDIRECT",
+    [XDP_UNKNOWN] = "XDP_UNKNOWN",
+};
+
+const char *action2str(__u32 act)
+{
+    if (act < XDP_ACTION_MAX)
+    {
+        return xdp_act_names[act];
+    }
+    return NULL;
 }

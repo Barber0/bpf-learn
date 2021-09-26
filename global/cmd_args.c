@@ -49,7 +49,7 @@ void parse_cmd_args(
     while ((opt = getopt_long(
                 argc,
                 argv,
-                "d:U",
+                "d:US",
                 opts,
                 &opt_idx)) != -1)
     {

@@ -27,4 +27,14 @@ struct config
 #define EXIT_FAIL 3
 #define EXIT_FAIL_BPF 4
 
+#define XDP_UNKNOWN XDP_REDIRECT + 1
+
+#ifndef XDP_ACTION_MAX
+#define XDP_ACTION_MAX XDP_UNKNOWN + 1
+#endif
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 #endif

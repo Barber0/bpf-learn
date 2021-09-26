@@ -3,7 +3,8 @@
 
 #include <linux/types.h>
 
-struct datarec {
+struct datarec
+{
     __u64 rx_pkts;
 };
 
