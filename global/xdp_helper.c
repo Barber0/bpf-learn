@@ -1,6 +1,3 @@
-#ifndef __COMMON_XDP_HELPER_H
-#define __COMMON_XDP_HELPER_H
-
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -9,6 +6,7 @@
 
 #include <linux/types.h>
 #include <linux/if_link.h>
+#include <linux/err.h>
 
 #include <net/if.h>
 
@@ -16,6 +14,10 @@
 #include <bpf/libbpf.h>
 
 #include "common_define.h"
+#include "xdp_helper.h"
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 int xdp_link_attach(int ifidx, __u32 xdp_flags, int prog_fd)
 {
@@ -85,22 +87,20 @@ int xdp_link_detach(int ifidx, __u32 xdp_flags, __u32 target_prog_id)
 
 struct bpf_object *load_bpf_obj_file(const char *filename, int ifidx)
 {
-    // struct bpf_prog_load_attr prog_load_attr = {
-    //     .prog_type = BPF_PROG_TYPE_XDP,
-    //     .ifindex = ifidx,
-    // };
-    // prog_load_attr.file = filename;
-
-    // printf("bpf ifidx: %d\n", ifidx);
-
-    // int err = bpf_prog_load_xattr(
-    //     &prog_load_attr,
-    //     &bpf_obj,
-    //     &first_prog_fd);
-
     int first_prog_fd = -1;
     struct bpf_object *bpf_obj;
-    int err = bpf_prog_load(filename, BPF_PROG_TYPE_XDP, &bpf_obj, &first_prog_fd);
+    struct bpf_prog_load_attr prog_load_attr = {
+        .prog_type = BPF_PROG_TYPE_XDP,
+        .ifindex = ifidx,
+    };
+    prog_load_attr.file = filename;
+
+    printf("bpf ifidx: %d\n", ifidx);
+
+    int err = bpf_prog_load_xattr(
+        &prog_load_attr,
+        &bpf_obj,
+        &first_prog_fd);
     if (err < 0)
     {
         fprintf(stderr, "ERR: load XDP prog from obj file(%s) failed: err(%d): %s\n", filename, -err, strerror(-err));
@@ -108,6 +108,125 @@ struct bpf_object *load_bpf_obj_file(const char *filename, int ifidx)
     }
 
     return bpf_obj;
+}
+
+struct bpf_object *open_bpf_obj(const char *filename, int ifidx)
+{
+    struct bpf_object_open_attr open_attr = {
+        .file = filename,
+        .prog_type = BPF_PROG_TYPE_XDP,
+    };
+
+    struct bpf_object *obj = bpf_object__open_xattr(&open_attr);
+    if (IS_ERR_OR_NULL(obj))
+    {
+        int err = -PTR_ERR(obj);
+        fprintf(stderr, "ERR: open BPF-OBJ file(%s) (%d): %s\n",
+                filename,
+                err,
+                strerror(err));
+        return NULL;
+    }
+
+    struct bpf_program *prog, *first_prog = NULL;
+    bpf_object__for_each_program(prog, obj)
+    {
+        bpf_program__set_type(prog, BPF_PROG_TYPE_XDP);
+        bpf_program__set_ifindex(prog, ifidx);
+        if (!first_prog)
+        {
+            first_prog = prog;
+            break;
+        }
+    }
+
+    struct bpf_map *map;
+    bpf_object__for_each_map(map, obj)
+    {
+        if (!bpf_map__is_offload_neutral(map))
+        {
+            bpf_map__set_ifindex(map, ifidx);
+        }
+    }
+
+    if (!first_prog)
+    {
+        fprintf(stderr, "ERR: file(%s) program not found\n", filename);
+        return NULL;
+    }
+
+    return obj;
+}
+
+int reuse_maps(struct bpf_object *obj, const char *path)
+{
+    if (!obj)
+    {
+        return -ENOENT;
+    }
+
+    if (!path)
+    {
+        return -EINVAL;
+    }
+
+    char buf[PATH_MAX];
+    struct bpf_map *map;
+    bpf_object__for_each_map(map, obj)
+    {
+        int len = snprintf(buf, PATH_MAX, "%s/%s", path, bpf_map__name(map));
+        if (len < 0)
+        {
+            return -EINVAL;
+        }
+        else if (len >= PATH_MAX)
+        {
+            return -ENAMETOOLONG;
+        }
+
+        int pinned_map_fd = bpf_obj_get(buf);
+        if (pinned_map_fd < 0)
+        {
+            return pinned_map_fd;
+        }
+
+        int err = bpf_map__reuse_fd(map, pinned_map_fd);
+        if (err)
+        {
+            return err;
+        }
+    }
+
+    return 0;
+}
+
+struct bpf_object *load_bpf_obj_file_reuse_maps(
+    const char *filename,
+    int ifidx,
+    const char *pin_dir)
+{
+    struct bpf_object *obj = open_bpf_obj(filename, ifidx);
+    if (!obj)
+    {
+        fprintf(stderr, "ERR: open file(%s) failed\n", filename);
+        return NULL;
+    }
+
+    int err = reuse_maps(obj, pin_dir);
+    if (err)
+    {
+        fprintf(stderr, "ERR: reuse map in file(%s) pin_dir(%s) failed(%d): %s\n", filename, pin_dir, err, strerror(-err));
+        return NULL;
+    }
+
+    err = bpf_object__load(obj);
+    if (err)
+    {
+        fprintf(stderr, "ERR: load BPF-OBJ file(%s) failed(%d): %s\n", filename, err, strerror(-err));
+        return NULL;
+    }
+
+    return obj;
 }
 
 struct bpf_object *load_bpf_and_xdp_attach(struct config *cfg)
@@ -118,7 +237,21 @@ struct bpf_object *load_bpf_and_xdp_attach(struct config *cfg)
         offload_ifidx = cfg->netif_idx;
     }
 
-    struct bpf_object *bpf_obj = load_bpf_obj_file(cfg->obj_filename, offload_ifidx);
+    struct bpf_object *bpf_obj;
+    if (cfg->reuse_maps)
+    {
+        bpf_obj = load_bpf_obj_file_reuse_maps(
+            cfg->obj_filename,
+            offload_ifidx,
+            cfg->pin_dir);
+    }
+    else
+    {
+        bpf_obj = load_bpf_obj_file(
+            cfg->obj_filename,
+            offload_ifidx);
+    }
+
     if (!bpf_obj)
     {
         fprintf(stderr, "ERR: loading file failed: %s\n", cfg->obj_filename);
@@ -157,10 +290,3 @@ struct bpf_object *load_bpf_and_xdp_attach(struct config *cfg)
     }
     return bpf_obj;
 }
-
-#define XDP_UNKNOWN XDP_REDIRECT + 1
-#ifndef XDP_ACTION_MAX
-#define XDP_ACTION_MAX XDP_UNKNOWN + 1
-#endif
-
-#endif

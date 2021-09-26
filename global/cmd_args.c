@@ -3,6 +3,7 @@
 #include <string.h>
 #include <net/if.h>
 #include <errno.h>
+#include <linux/if_link.h>
 
 #include "cmd_args.h"
 #include "common_define.h"
@@ -72,6 +73,13 @@ void parse_cmd_args(
         case 'U':
             cfg->do_unload = true;
             break;
+        case 'S':
+            cfg->xdp_flags &= ~XDP_FLAGS_MODES;
+            cfg->xdp_flags |= XDP_FLAGS_SKB_MODE;
+            break;
+        case 'M':
+            cfg->reuse_maps = true;
+            break;
         case 1:
             tmp_dest_addr = (char *)&cfg->progsec;
             strncpy(tmp_dest_addr, optarg, sizeof(cfg->progsec));
@@ -79,6 +87,14 @@ void parse_cmd_args(
         case 2:
             tmp_dest_addr = (char *)&cfg->obj_filename;
             strncpy(tmp_dest_addr, optarg, sizeof(cfg->obj_filename));
+            break;
+        case 3:
+            tmp_dest_addr = (char *)&cfg->pin_basedir;
+            strncpy(tmp_dest_addr, optarg, sizeof(cfg->pin_basedir));
+            break;
+        case 4:
+            tmp_dest_addr = (char *)&cfg->mapname;
+            strncpy(tmp_dest_addr, optarg, sizeof(cfg->mapname));
             break;
         error:
         default:

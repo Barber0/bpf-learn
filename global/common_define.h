@@ -13,6 +13,11 @@ struct config
     bool do_unload;
     char progsec[512];
     char obj_filename[512];
+    char pin_basedir[512];
+
+    bool reuse_maps;
+    char pin_dir[512];
+    char mapname[512];
     __u32 xdp_flags;
 };
 

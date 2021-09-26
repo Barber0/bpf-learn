@@ -2,9 +2,11 @@ CC ?= gcc
 
 CFLAGS := -g -Wall
 
-LIBBPF_DIR := ../libbpf/src/
+LIBBPF_MAIN_DIR := ../libbpf
+LIBBPF_BUILD_DIR := $(LIBBPF_MAIN_DIR)/src/
 
-CFLAGS += -I$(LIBBPF_DIR)/build/usr/include/
+CFLAGS += -I$(LIBBPF_BUILD_DIR)/build/usr/include/ 
+CFLAGS += -I$(LIBBPF_MAIN_DIR)/include/
 
 all: cmd_args.o xdp_helper.o
 
