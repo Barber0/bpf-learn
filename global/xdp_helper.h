@@ -14,5 +14,6 @@ struct bpf_object *load_bpf_obj_file_reuse_maps(const char *filename, int ifidx,
 struct bpf_object *load_bpf_and_xdp_attach(struct config *cfg);
 
 const char *action2str(__u32 act);
+int open_bpf_map_file(const struct config *cfg, struct bpf_map_info *info);
 
 #endif

@@ -27,6 +27,8 @@ struct option_wrapper wrappers[] = {
     {{"filename", required_argument, NULL, 2}, "filename", "<file>"},
     {{"pin_basedir", required_argument, NULL, 3}, "pin_basedir", "<pin_basedir>"},
     {{"mapname", required_argument, NULL, 4}, "mapname", "<mapname>"},
+
+    {{"pinmap", no_argument, NULL, 5}, "pinmap", "<pinmap>"},
 };
 
 int pin_maps_in_bpf_object(struct bpf_object *bpf_obj, struct config *cfg)
@@ -61,7 +63,7 @@ int pin_maps_in_bpf_object(struct bpf_object *bpf_obj, struct config *cfg)
         err = bpf_object__unpin_maps(bpf_obj, pin_dir);
         if (err)
         {
-            fprintf(stderr, "ERR: UNpinning maps in %s\n", pin_dir);
+            fprintf(stderr, "ERR: UNpinning maps in %s failed(%d): %s\n", pin_dir, err, strerror(-err));
             return EXIT_FAIL_BPF;
         }
     }
@@ -70,7 +72,10 @@ int pin_maps_in_bpf_object(struct bpf_object *bpf_obj, struct config *cfg)
     /* This will pin all maps in our bpf_object */
     err = bpf_object__pin_maps(bpf_obj, pin_dir);
     if (err)
+    {
+        fprintf(stderr, "ERR: pinning map failed(%d): %s\n", err, strerror(-err));
         return EXIT_FAIL_BPF;
+    }
 
     return 0;
 }
@@ -78,7 +83,7 @@ int pin_maps_in_bpf_object(struct bpf_object *bpf_obj, struct config *cfg)
 int find_map_fd(struct bpf_object *bpf_obj, const char *mapname)
 {
     const struct bpf_map *map = bpf_object__find_map_by_name(bpf_obj, mapname);
-    if (map)
+    if (!map)
     {
         fprintf(stderr, "ERR: find map by name failed: %s\n", mapname);
         return -1;
@@ -231,6 +236,7 @@ int main(int argc, char *argv[])
         .xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST | XDP_FLAGS_DRV_MODE,
         .netif_idx = -1,
         .do_unload = false,
+        .need_pin = false,
     };
 
     strncpy(cfg.obj_filename, default_bpf_obj_filename, sizeof(cfg.obj_filename));
@@ -253,15 +259,27 @@ int main(int argc, char *argv[])
         return xdp_link_detach(cfg.netif_idx, cfg.xdp_flags, 0);
     }
 
-    struct bpf_object *bpf_obj = load_bpf_and_xdp_attach(&cfg);
-    if (!bpf_obj)
+    if (cfg.need_pin)
     {
-        return EXIT_FAIL_BPF;
+        struct bpf_object *bpf_obj = load_bpf_and_xdp_attach(&cfg);
+        if (!bpf_obj)
+        {
+            return EXIT_FAIL_BPF;
+        }
+
+        printf("Success: Loaded BPF-obj(%s), used section(%s)\n", cfg.obj_filename, cfg.progsec);
+
+        int err = pin_maps_in_bpf_object(bpf_obj, &cfg);
+        if (err)
+        {
+            fprintf(stderr, "ERR: pin map failed(%d): %s\n", err, strerror(-err));
+            return EXIT_FAIL_BPF;
+        }
+        return EXIT_OK;
     }
 
-    printf("Success: Loaded BPF-obj(%s), used section(%s)\n", cfg.obj_filename, cfg.progsec);
-
-    int map_fd = find_map_fd(bpf_obj, cfg.mapname);
+    struct bpf_map_info info = {0};
+    int map_fd = open_bpf_map_file(&cfg, &info);
     if (map_fd < 0)
     {
         xdp_link_detach(cfg.netif_idx, cfg.xdp_flags, 0);
@@ -274,13 +292,14 @@ int main(int argc, char *argv[])
         .max_entries = XDP_ACTION_MAX,
     };
 
-    struct bpf_map_info info;
     int err = check_map_fd_info(map_fd, &info, &map_expected);
     if (err)
     {
         fprintf(stderr, "ERR: target map not match\n");
         return err;
     }
+
+    stats_poll(map_fd, info.type, 2);
 
     return EXIT_OK;
 }

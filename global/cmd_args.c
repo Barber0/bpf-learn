@@ -96,6 +96,9 @@ void parse_cmd_args(
             tmp_dest_addr = (char *)&cfg->mapname;
             strncpy(tmp_dest_addr, optarg, sizeof(cfg->mapname));
             break;
+        case 5:
+            cfg->need_pin = true;
+            break;
         error:
         default:
             free(opts);

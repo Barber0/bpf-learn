@@ -305,3 +305,36 @@ const char *action2str(__u32 act)
     }
     return NULL;
 }
+
+int open_bpf_map_file(const struct config *cfg, struct bpf_map_info *info)
+{
+    char filename[PATH_MAX];
+
+    int len = snprintf(filename, PATH_MAX, "%s/%s/%s", cfg->pin_basedir, cfg->netif_name, cfg->mapname);
+    if (len < 0)
+    {
+        fprintf(stderr, "ERR: format map file name failed(%d): %s\n", len, strerror(-len));
+        return -len;
+    }
+
+    printf("INFO: map filename: %s\n", cfg->mapname);
+
+    int fd = bpf_obj_get(filename);
+    if (fd < 0)
+    {
+        fprintf(stderr, "ERR: get bpf map failed(%d): %s\n", fd, strerror(-fd));
+        return fd;
+    }
+
+    if (info)
+    {
+        __u32 info_len = sizeof(*info);
+        int err = bpf_obj_get_info_by_fd(fd, info, &info_len);
+        if (err)
+        {
+            fprintf(stderr, "ERR: get info failed(%d): %s\n", err, strerror(-err));
+            return EXIT_FAIL_BPF;
+        }
+    }
+    return fd;
+}
